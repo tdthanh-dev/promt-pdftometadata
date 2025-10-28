@@ -1,20 +1,28 @@
 version: '3.8'
 
 services:
-  postgres:
+  postgres: # Tên service (có thể giữ nguyên hoặc đổi thành chatbot_db cho rõ hơn)
     image: pgvector/pgvector:pg16
     container_name: chatbot_pgvector
+    # network_mode: "bridge" # Thường không cần ghi rõ vì đây là mặc định
+
     environment:
       POSTGRES_USER: chatbot_user
-      POSTGRES_PASSWORD: chatbot_pass
+      POSTGRES_PASSWORD: Thanh1410@ # <-- THAY MẬT KHẨU MẠNH VÀO ĐÂY!
       POSTGRES_DB: chatbot_db
+      # POSTGRES_HOST_AUTH_METHOD: trust # <-- XÓA DÒNG NÀY! Rất nguy hiểm, cho phép kết nối không cần mật khẩu.
+
     ports:
-      - "5432:5432"
+      - "5433:5432" # <-- ĐỔI CỔNG HOST thành 5433 (hoặc cổng khác) để tránh xung đột với pgAdmin/Postgres khác trên máy bạn. Cổng container vẫn là 5432.
+
     volumes:
-      - pgvector_data:/var/lib/postgresql/data
-      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+      - pgvector_data:/var/lib/postgresql/data # Lưu dữ liệu database
+      # - ./01_set_password.sql:/docker-entrypoint-initdb.d/01_set_password.sql # <-- XÓA DÒNG NÀY! Mật khẩu đã được đặt bởi POSTGRES_PASSWORD.
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql # <-- Đổi tên file cho gọn và đảm bảo file này tồn tại
+
     restart: unless-stopped
-    healthcheck:
+
+    healthcheck: # Giữ nguyên, rất tốt để kiểm tra DB sẵn sàng chưa
       test: ["CMD-SHELL", "pg_isready -U chatbot_user -d chatbot_db"]
       interval: 10s
       timeout: 5s
@@ -22,4 +30,4 @@ services:
 
 volumes:
   pgvector_data:
-    driver: local
+    driver: local # Giữ nguyên

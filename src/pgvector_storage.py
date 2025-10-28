@@ -19,7 +19,7 @@ class PgVectorStorage:
     
     def __init__(self):
         self.conn_params = {
-            'host': os.getenv('POSTGRES_HOST', 'localhost'),
+            'host': os.getenv('POSTGRES_HOST', '127.0.0.1'),  # Dùng IP thay vì localhost
             'port': os.getenv('POSTGRES_PORT', '5432'),
             'database': os.getenv('POSTGRES_DB', 'chatbot_db'),
             'user': os.getenv('POSTGRES_USER', 'chatbot_user'),
@@ -36,7 +36,7 @@ class PgVectorStorage:
         try:
             result = self.client.models.embed_content(
                 model='models/text-embedding-004',
-                content=text
+                contents=[text]
             )
             return result.embeddings[0].values
         except Exception as e:
@@ -148,17 +148,20 @@ class PgVectorStorage:
             
             # Build query với filters
             where_clauses = []
-            params = [query_embedding, limit]
+            filter_params = []
             
             if content_type:
                 where_clauses.append("c.content_type = %s")
-                params.insert(-1, content_type)
+                filter_params.append(content_type)
             
             if applicable_cohort:
                 where_clauses.append("c.applicable_cohort LIKE %s")
-                params.insert(-1, f"%{applicable_cohort}%")
+                filter_params.append(f"%{applicable_cohort}%")
             
             where_sql = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
+            
+            # Params theo đúng thứ tự: filter_params + query_embedding (2 lần) + limit
+            params = filter_params + [query_embedding, query_embedding, limit]
             
             cur.execute(f"""
                 SELECT 

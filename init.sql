@@ -49,9 +49,9 @@ CREATE INDEX IF NOT EXISTS idx_documents_doc_type ON documents(doc_type);
 CREATE INDEX IF NOT EXISTS idx_documents_major_topic ON documents(major_topic);
 CREATE INDEX IF NOT EXISTS idx_documents_issue_date ON documents(issue_date);
 
--- Full-text search index cho chunk_text
+-- Full-text search index cho chunk_text (using english instead of vietnamese)
 CREATE INDEX IF NOT EXISTS idx_chunks_text_search ON chunks 
-USING gin(to_tsvector('vietnamese', chunk_text));
+USING gin(to_tsvector('english', chunk_text));
 
 -- Trigger để tự động update updated_at
 CREATE OR REPLACE FUNCTION update_updated_at_column()

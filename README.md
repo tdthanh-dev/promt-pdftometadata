@@ -1,150 +1,269 @@
-# PDF to Metadata Extraction System
+# 🤖 ChatBot - Trợ lý học vụ tự động
 
-Hệ thống trích xuất metadata và nội dung có cấu trúc từ file PDF sử dụng Google Gemini AI + PostgreSQL pgvector.
+Hệ thống trích xuất metadata từ tài liệu PDF học vụ và xây dựng chatbot hỗ trợ sinh viên tra cứu thông tin thông qua semantic search.
 
-## ✨ Tính năng
+## 📋 Tổng quan
 
-- 🤖 Sử dụng **Gemini 2.5 Flash** - Model AI mạnh nhất hiện tại
-- 📄 Trích xuất metadata từ văn bản PDF (Quyết định, Thông báo, Quy chế...)
-- 🎯 Schema validation với Pydantic v2
-- 🔍 Phân tích chi tiết theo chunks (mỗi điều khoản, mỗi dòng bảng = 1 chunk)
-- 🆔 Tự động tạo UUID có ý nghĩa cho documents và chunks
-- 📊 Trích xuất thông tin: Học phí, Khóa áp dụng, Điểm rèn luyện...
-- 🐘 **PostgreSQL + pgvector** cho vector similarity search
-- 🔎 **Semantic search** với embeddings (768 dimensions)
-- 💾 Lưu trữ persistent với Docker volume
+- **Input**: PDF files (Thông báo CTDT, Quy định học phí, Quy chế đào tạo, ...)
+- **Processing**: Gemini 2.0 Flash với Structured Output
+- **Storage**: PostgreSQL + pgvector (768-dimensional embeddings)
+- **Search**: Vector similarity search với HNSW index
 
-## 🚀 Schema Metadata
+## 🗂️ Cấu trúc dự án
 
-### Document Metadata
-- DOC_ID, FILE_NAME, DOC_TITLE
-- DOC_TYPE, ISSUE_NUMBER, ISSUE_DATE
-- ISSUING_AUTHORITY, ISSUING_DEPT
-- EFFECTIVE_DATE, EXPIRATION_DATE
-- MAJOR_TOPIC
+```
+ChatBot/
+├── data/                          # Data directory (không commit lên Git)
+│   ├── raw_pdfs/                  # PDF files gốc
+│   │   └── THONGBAO/              # 34 files CTDT các khóa, ngành
+│   ├── processed/                 # Kết quả xử lý
+│   │   ├── json/                  # Structured metadata
+│   │   └── csv/                   # Human-readable format
+│   └── logs/                      # Processing logs
+│
+├── src/                           # Source code
+│   ├── extractors/                # PDF extraction logic
+│   ├── pgvector_storage.py        # PostgreSQL + pgvector storage
+│   └── chatbot_storage.py         # Legacy storage (deprecated)
+│
+├── scripts/                       # Utility scripts
+│   └── batch_process.py           # Batch processing for multiple PDFs
+│
+├── main.py                        # Single file processor
+├── docker-compose.yml             # PostgreSQL + pgvector setup
+├── init.sql                       # Database schema
+├── requirements.txt               # Python dependencies
+├── .env                           # Environment variables (API keys)
+└── ARCHITECTURE.md                # Detailed architecture docs
+```
 
-### Chunk Metadata
-- CHUNK_ID, PAGE_NUMBER, SECTION_TITLE
-- CHUNK_TOPIC, CONTENT_TYPE
-- SPECIFIC_TARGET, APPLICABLE_COHORT
-- VALUE, UNIT, KEYWORDS
-- chunk_text
+## 🚀 Quick Start
 
-## 📦 Cài đặt
-
-### Option 1: Sử dụng Docker (Khuyến nghị)
+### 1️⃣ Setup môi trường
 
 ```bash
 # Clone repository
 git clone https://github.com/tdthanh-dev/promt-pdftometadata.git
-cd promt-pdftometadata
+cd ChatBot
 
-# Khởi động PostgreSQL với pgvector
-docker-compose up -d
+# Tạo virtual environment
+python -m venv venv
+venv\Scripts\activate  # Windows
+# source venv/bin/activate  # Linux/Mac
 
-# Cài đặt Python dependencies
+# Cài đặt dependencies
 pip install -r requirements.txt
 
-# Cấu hình environment
-cp .env.example .env
-# Sửa .env với GEMINI_API_KEY của bạn
+# Tạo file .env
+echo "GEMINI_API_KEY=your_api_key_here" > .env
 ```
 
-📖 **Xem chi tiết:** [DOCKER_SETUP.md](DOCKER_SETUP.md)
-
-### Option 2: Manual Installation
+### 2️⃣ Khởi động Database
 
 ```bash
-pip install google-genai pydantic python-dotenv psycopg2-binary
+# Start PostgreSQL + pgvector
+docker-compose up -d
+
+# Verify database
+docker ps
+docker exec chatbot_pgvector psql -U chatbot_user -d chatbot_db -c "\dt"
 ```
 
-## ⚙️ Cấu hình
+### 3️⃣ Xử lý PDF files
 
-Tạo file `.env`:
+**Option A: Xử lý 1 file**
+```bash
+python main.py
+# Nhập đường dẫn PDF khi được hỏi
 ```
-GEMINI_API_KEY=your_api_key_here
+
+**Option B: Xử lý hàng loạt (Recommended)**
+```bash
+# Xử lý toàn bộ THONGBAO folder (34 files)
+python scripts/batch_process.py --input data/raw_pdfs/THONGBAO --output data/processed
+
+# Xử lý 5 files đầu tiên (để test)
+python scripts/batch_process.py --input data/raw_pdfs/THONGBAO --output data/processed --limit 5
+
+# Reprocess tất cả (overwrite)
+python scripts/batch_process.py --input data/raw_pdfs/THONGBAO --output data/processed --no-skip
 ```
 
-## 🎯 Sử dụng
+### 4️⃣ Load vào Database
 
-### 1. Trích xuất PDF
-```python
+```bash
+# TODO: Script đang phát triển
+python scripts/migrate_to_db.py --input data/processed/json
+```
+
+### 5️⃣ Test Semantic Search
+
+```bash
+# TODO: API đang phát triển
+python scripts/test_search.py --query "Học phí khóa 2025"
+```
+
+## 📊 Database Schema
+
+### Table: `documents`
+Lưu metadata cấp tài liệu
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | SERIAL | Primary key |
+| `doc_id` | VARCHAR(100) | Unique document ID |
+| `file_name` | VARCHAR(255) | Original filename |
+| `doc_title` | TEXT | Document title |
+| `doc_type` | VARCHAR(50) | "Thông báo", "Quy định", ... |
+| `issue_number` | VARCHAR(100) | Số hiệu văn bản |
+| `issuing_authority` | VARCHAR(255) | Cơ quan ban hành |
+| `issue_date` | DATE | Ngày ban hành |
+| `major_topic` | VARCHAR(100) | Chủ đề chính |
+
+### Table: `chunks`
+Lưu metadata cấp đoạn văn + vector embeddings
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | SERIAL | Primary key |
+| `chunk_id` | VARCHAR(150) | Unique chunk ID |
+| `doc_id` | VARCHAR(100) | Foreign key → documents |
+| `page_number` | INTEGER | Số trang |
+| `chunk_topic` | VARCHAR(255) | Chủ đề đoạn văn |
+| `content_type` | VARCHAR(100) | "Đại trà", "CLCQ", ... |
+| `applicable_cohort` | VARCHAR(100) | "Khóa 2024", "Khóa 2025" |
+| `chunk_text` | TEXT | Nội dung đầy đủ |
+| `embedding` | vector(768) | Vector embedding |
+
+## 🔧 Configuration
+
+### Environment Variables (`.env`)
+
+```env
+# Gemini API
+GEMINI_API_KEY=your_gemini_api_key
+
+# PostgreSQL
+POSTGRES_USER=chatbot_user
+POSTGRES_PASSWORD=Thanh1410@
+POSTGRES_DB=chatbot_db
+POSTGRES_PORT=5433
+```
+
+### Docker Compose
+
+```yaml
+services:
+  pgvector:
+    image: pgvector/pgvector:pg16
+    container_name: chatbot_pgvector
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_USER: chatbot_user
+      POSTGRES_PASSWORD: Thanh1410@
+      POSTGRES_DB: chatbot_db
+    volumes:
+      - pgvector_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+```
+
+## 📈 Processing Stats
+
+### THONGBAO Folder (34 files CTDT)
+
+- **Total files**: 34 PDFs
+- **Estimated time**: ~17 phút (30s/file)
+- **Output size**: 
+  - JSON: ~1.7 MB
+  - Database: ~5 MB (with embeddings)
+- **Chunks**: ~500-1000 chunks tổng cộng
+
+## 🛠️ Development
+
+### Thêm PDF mới
+
+```bash
+# 1. Copy PDF vào thư mục phù hợp
+cp new_document.pdf data/raw_pdfs/QUY_DINH/
+
+# 2. Chạy batch processor
+python scripts/batch_process.py --input data/raw_pdfs/QUY_DINH --output data/processed
+
+# 3. Load vào database
+python scripts/migrate_to_db.py --input data/processed/json/new_document_output.json
+```
+
+### Update Schema
+
+```bash
+# 1. Sửa file init.sql
+# 2. Restart database
+docker-compose down
+docker-compose up -d
+```
+
+## 📝 Logs
+
+Logs được lưu tại `data/logs/batch_YYYYMMDD_HHMMSS.log`
+
+```bash
+# Xem log mới nhất
+Get-ChildItem data/logs | Sort-Object LastWriteTime -Descending | Select-Object -First 1 | Get-Content
+```
+
+## 🐛 Troubleshooting
+
+### Database connection failed
+
+```bash
+# Check container status
+docker ps
+
+# Check logs
+docker logs chatbot_pgvector
+
+# Restart container
+docker-compose restart
+```
+
+### PDF extraction failed
+
+```bash
+# Check API key
+cat .env | grep GEMINI_API_KEY
+
+# Check file encoding
+file data/raw_pdfs/THONGBAO/filename.pdf
+
+# Test with single file
 python main.py
 ```
 
-Chỉnh sửa tên file PDF trong `main.py`:
-```python
-PDF_FILE_TO_PROCESS = 'your_file.pdf'
-```
+## 📚 Documentation
 
-### 2. Lưu vào PostgreSQL với embeddings
-```python
-from pgvector_storage import PgVectorStorage
-import json
+- [ARCHITECTURE.md](ARCHITECTURE.md) - Detailed architecture & design decisions
+- [docker-compose.yml](docker-compose.yml) - Infrastructure setup
+- [init.sql](init.sql) - Database schema
 
-storage = PgVectorStorage()
+## 🤝 Contributing
 
-# Load từ output.json
-with open('output.json', 'r', encoding='utf-8') as f:
-    doc_data = json.load(f)
-    storage.save_document(doc_data)
-```
-
-### 3. Tìm kiếm semantic
-```python
-# Tìm kiếm theo ngữ nghĩa
-results = storage.semantic_search(
-    query="học phí chương trình tiên tiến khóa 2024",
-    limit=5
-)
-
-for result in results:
-    print(f"{result['chunk_topic']}: {result['chunk_text']}")
-    print(f"Similarity: {result['similarity']:.4f}\n")
-```
-
-## 📁 Files
-
-- `main.py` - Script chính để xử lý PDF
-- `pgvector_storage.py` - PostgreSQL + pgvector storage & search
-- `check_models.py` - Kiểm tra models có sẵn với API key
-- `docker-compose.yml` - Docker setup cho PostgreSQL
-- `init.sql` - Database schema với pgvector
-- `output.json` - Kết quả trích xuất (tự động tạo)
-- `DOCKER_SETUP.md` - Hướng dẫn chi tiết Docker
-
-## 🎨 Ví dụ Output
-
-```json
-{
-  "document_metadata": {
-    "DOC_ID": "DRL_2024_2025_TB_001",
-    "DOC_TITLE": "Về việc công bố dự thảo...",
-    "DOC_TYPE": "THÔNG BÁO",
-    "ISSUE_DATE": "2025-10-13"
-  },
-  "chunk_metadata": [
-    {
-      "CHUNK_ID": "DRL_2024_2025_TB_001_CHUNK_001",
-      "CHUNK_TOPIC": "Căn cứ và mục đích thông báo",
-      "APPLICABLE_COHORT": "Năm học 2024 - 2025",
-      "chunk_text": "..."
-    }
-  ]
-}
-```
-
-## 🔥 Model Support
-
-Hỗ trợ các Gemini models:
-- ⭐ **gemini-2.5-flash** (Khuyến nghị - đang dùng)
-- 💎 gemini-2.5-pro
-- ⚡ gemini-2.0-flash-exp
+1. Fork repository
+2. Create feature branch: `git checkout -b feature/new-feature`
+3. Commit changes: `git commit -am 'Add new feature'`
+4. Push to branch: `git push origin feature/new-feature`
+5. Submit Pull Request
 
 ## 📄 License
 
-MIT
+MIT License - see [LICENSE](LICENSE) file for details
 
-## 👨‍💻 Author
+## 👥 Authors
 
-Created with ❤️ using Google Gemini AI
+- **tdthanh-dev** - Initial work - [GitHub](https://github.com/tdthanh-dev)
+
+## 🙏 Acknowledgments
+
+- Gemini 2.0 Flash for structured PDF extraction
+- pgvector for efficient vector similarity search
+- PostgreSQL for reliable data storage
