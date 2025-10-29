@@ -296,15 +296,21 @@ def process_document(file_path: str) -> Optional[DocumentData]:
         # Tạo base filename (bỏ phần mở rộng .pdf)
         base_filename = os.path.splitext(file_name)[0]
         
+        # Tạo thư mục output nếu chưa có
+        json_dir = 'data/processed/json'
+        csv_dir = 'data/processed/csv'
+        os.makedirs(json_dir, exist_ok=True)
+        os.makedirs(csv_dir, exist_ok=True)
+        
         # 1. Ghi kết quả ra file JSON
-        json_output = f'{base_filename}_output.json'
+        json_output = os.path.join(json_dir, f'{base_filename}_output.json')
         with open(json_output, 'w', encoding='utf-8') as f:
             # Sử dụng model_dump_json để xuất chuẩn (xử lý UUID, date, v.v.)
             f.write(data.model_dump_json(indent=2, ensure_ascii=False))
         logging.info(f"✅ Đã lưu JSON vào: {json_output}")
         
         # 2. Ghi document metadata ra CSV
-        doc_csv = f'{base_filename}_document.csv'
+        doc_csv = os.path.join(csv_dir, f'{base_filename}_document.csv')
         with open(doc_csv, 'w', encoding='utf-8-sig', newline='') as f:
             writer = csv.writer(f)
             # Header
@@ -323,7 +329,7 @@ def process_document(file_path: str) -> Optional[DocumentData]:
         logging.info(f"✅ Đã lưu Document CSV vào: {doc_csv}")
         
         # 3. Ghi chunk metadata ra CSV
-        chunks_csv = f'{base_filename}_chunks.csv'
+        chunks_csv = os.path.join(csv_dir, f'{base_filename}_chunks.csv')
         with open(chunks_csv, 'w', encoding='utf-8-sig', newline='') as f:
             writer = csv.writer(f)
             # Header
